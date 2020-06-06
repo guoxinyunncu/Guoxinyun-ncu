@@ -1,0 +1,119 @@
+clear
+filepath=('D:\guoxinyun\test.txt');
+file1=textread(filepath,'%s','delimiter','\n','whitespace','');
+queryseq=char(file1);
+filepath=('D:\guoxinyun\data\Positive.txt');
+file2=textread(filepath,'%s','delimiter','\n','whitespace','');
+sp=char(file2);
+filepath=('D:\guoxinyun\data\Nagetive.txt');
+file3=textread(filepath,'%s','delimiter','\n','whitespace','');
+sb=char(file3);
+
+L=33;
+AAs='CSTPAGNDEQHRKMILVFYWO';
+matrixpath=('C:\Users\20170426-2\Desktop\试验\blosum62.xlsx');
+matrixnum=xlsread(matrixpath);
+matrixmax=max(max(matrixnum));
+matrixmin=min(min(matrixnum));
+%Sp正样本
+rsp=size(sp,1);
+spnum=rsp/2;
+%背景集Sb所有负样本
+rsb=size(sb,1);
+sbnum=rsb/2;
+%合并Sp和Sb
+
+
+filecom=[file2;file3];
+comparison=char(filecom)
+rcomparison=size(comparison,1); 
+n=rcomparison/2;
+%QuerySeq
+rqueryseq=size(queryseq,1);
+queryseqnum=rqueryseq/2;
+
+
+ for i=1:n
+     for j=1:L 
+        if comparison(2*i,j) == 'U'|| comparison(2*i,j) == 'X'
+            comparison(2*i-1:2*i,:)=[];
+        end
+     end
+ end
+
+for i=1:n
+     for j=1:L 
+        if comparison(2*i,j) == 'O'
+            comparison(2*i-1:2*i,:)=[];
+        end
+     end
+ end
+rcomparison=size(comparison,1); 
+n=rcomparison/2; 
+sbnum=n-spnum;
+
+
+P=[];
+u=0
+
+
+for t=1:queryseqnum%查询序列的数量
+    tic
+    for i=1:n%n为com行数，和所有的序列做相似性比较
+        for j=1:L
+        line(j)=findstr(AAs,queryseq(2*t,j));
+        row(j)=findstr(AAs,comparison(2*i,j));
+        matrixscores(j)=matrixnum(line(j),row(j));
+        sim(j)=(matrixscores(j)-matrixmin)/(matrixmax-matrixmin);
+        end
+    Dist(i)=sum(sim)/L;
+    end
+    [sortDist,index]=sort(Dist,'descend');%index保存原来的位置
+    D=sum(abs(Dist(1:spnum)));
+
+    for k=1:n
+        if index(k)<=spnum
+            RunSum(k)=abs(sortDist(k))/D;
+        else  
+            RunSum(k)=-1/sbnum;
+        end
+    end
+    runsum=cumsum(RunSum,2);
+    ES=max(runsum);
+    
+    background=Dist(spnum+1:end);
+    
+    for r=2:1000%计算999个随机的与正样本集同样大小的背景集的ES
+        R=randperm(sbnum);
+        A=R(1:spnum);
+        positive=background(A);
+        Dist=[positive background];
+        [sortDist,index]=sort(Dist,'descend');
+        D=sum(abs(Dist(1:spnum)));
+        
+        for k=1:n
+            if index(k)<=spnum
+                RunSum(k)=abs(sortDist(k))/D;
+            else
+                RunSum(k)=-1/sbnum;
+            end
+        end
+        runsum=cumsum(RunSum,2);
+        ES(r)=max(runsum);
+    end
+    [sortES,order]=sort(ES,'descend');
+    P(t)=find(order==1)/1000;
+    disp(['第',num2str(t),'条']);
+    toc
+
+end
+save P
+
+Q=[]
+ for i=1:queryseqnum
+     if P(i)<=0.002
+         Q(i)=1;
+     else
+         Q(i)=0
+     end
+ end
